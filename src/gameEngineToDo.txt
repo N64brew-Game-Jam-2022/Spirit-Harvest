@@ -1,0 +1,40 @@
+
+
+
+TO DO NOTES Updated 2/4/2021
+
+- A basic check for Level/SceneTriggers has been done 
+
+- Set up ENVColObject struct in objectDefs.h? 
+
+- Store the pointer to an array of these ENVColObject structs in SceneManager for the courtyard (levelDefs.h and main.c)
+
+- key scripts located in level00.c, transformDefs.h, collisionDefs, env00_col_courtyard_walls.c, collisioncheck.c
+
+- //TO DO NOTE: Set up ENVColObject to store in each courtyard scene for lvl00_courtyard_col_wall01_MeshVtx 
+
+- //TO DO NOTE: Set up SectorTrigger to determine where to check for collisions
+- //TO DO NOTE: Set up SectorTrigger to load events, texture animation, enemy behavior and collision checks.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+DONE 2/4/2021
+
+- TEST Sector trigger has been done to load level geometry, but needs to be changed to instead make a collision check
+- TEST LevelTrigger and SceneTrigger to load level geometry. WORKS in level00.c with simple testing 
+- Now that the format for LevelTrigger, SceneTrigger, and SectorTrigger are worked out, set it up to test in game

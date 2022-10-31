@@ -1,0 +1,1041 @@
+//#include "common.h"
+//#include "objectDefs.h"
+#include "playerDefs.h"
+#include "player_player_Defs.h"
+
+//audio test
+#include "audio.h"
+
+Player playerAvatar;
+u8 animFrame = 1; 
+
+#define PLAYER_MAX_SPEED 450.0f
+#define PLAYER_MID_SPEED 200.5f
+#define PLAYER_MIN_SPEED 100.5f
+
+#define PLAYER_MAX_JUMP_SPEED 4.0f
+
+static void updatePlayerAnim();
+void PlayerCollision();
+void FireShot();
+void UpdateShot();
+
+void PlayerJump();
+void PlayerJumpV2();
+void ApplyGravity();
+void FireShotv2();
+void UpdateShotv2();
+void CheckEnemyTargets();
+void initJump();
+void smoothVelocity();
+
+u8 updatedFrame = 0; //NOTE ----- This will trigger each time that a new frame is rendered. This allows vertical velocity to stack on jumping if the game is running at a lower than average frame rate.
+u8 jumpMultiplier = 1; //NOTE ----- stores the number of elapsed frames and multiplies it by the current vertical velocity
+
+EnemyTargets enemyTargets;
+
+EnemyObject emptyTargetObject;
+
+	int playerAnimationTimer = 0;
+	u8 beginFalling = 0;
+
+extern int GetFPS();
+extern int GetFPS_60();
+
+float minHeight = -300.0f;
+
+//NOTE 12022021 ----- 
+//          - remove 'animFrame' from each object in blender file
+//          - create new texture for waterfall in courtyard
+//          - Correct export of basic 4b pre-built texture to include lighting type commands
+//          - Re-export all leg parts so that they're not stuck in the ground or off center
+//          - FIX GBI COMMANDS so that they always print updated Geometry commands 
+
+
+//have camera position itself in between the player and the targeted enemy (Maybe...)
+//have player strafe around the enemy? (Maybe...)
+//Return to work on enemy AI
+
+void initPlayer()
+{
+	u8 tempCounter;
+	SetVector3(&emptyTargetObject.obj.pos, 0,0,0);
+	SetVector3(&emptyTargetObject.obj.rot, 0,0,0);
+	SetVector3(&emptyTargetObject.obj.scl, 1,1,1);
+    
+    
+    initJump();
+	
+	for(tempCounter = 0; tempCounter < 4; tempCounter++)
+	{
+		enemyTargets.enemyObjects[tempCounter] = &emptyTargetObject.obj;
+	}
+	
+	enemyTargets.activeTarget = enemyTargets.enemyObjects[2];
+
+	//SetVector3(&playerAvatar.obj.pos, 3355,-3000,5); //SPAWN NEAR DOOR
+	SetVector3(&playerAvatar.obj.pos, 7508,-7061,367); //SPAWN AT CANYON
+	//SetVector3(&playerAvatar.obj.pos, 75,-300,30); //spawn in courtyard area
+	SetVector3(&playerAvatar.obj.rot, 0,0,0); 
+	SetVector3(&playerAvatar.obj.scl, 1,1,1); 
+	SetVector3(&playerAvatar.rigidBody.velocity, 0,0,0); 
+	SetVector3(&playerAvatar.playerNormal, 0,-1,0); 
+	SetVector3(&playerAvatar.rigidBody.centerMass, 0,0,0); 
+	playerAvatar.rigidBody.speed = 3.0f;	
+	playerAvatar.rigidBody.gravityStrength = -0.25f;
+	playerAvatar.isJumping = 0;
+	playerAvatar.isFalling = 0;
+
+	SetRigAnimator(&playerAvatar.animRig, &DrawPlayerModel, 0,0);
+		
+	playerAvatar.sphereCollider.enabled = 1;	
+	playerAvatar.sphereCollider.radius = 25.0f;
+	SetVector3(&playerAvatar.sphereCollider.center, 		playerAvatar.obj.pos.x,playerAvatar.obj.pos.y,playerAvatar.obj.pos.z + (playerAvatar.sphereCollider.radius));
+	SetVector3(&playerAvatar.rigidBody.nextPos, playerAvatar.obj.pos.x,playerAvatar.obj.pos.y,playerAvatar.obj.pos.z); 
+	
+    
+    playerAvatar.wallCollider.enabled = 1;	
+	playerAvatar.wallCollider.radius = 20.0f;
+	SetVector3(&playerAvatar.wallCollider.center, 		playerAvatar.obj.pos.x,playerAvatar.obj.pos.y,playerAvatar.obj.pos.z + 10.0f + (playerAvatar.wallCollider.radius));
+    
+    
+	//defaultRig();	
+
+	playerAvatar.collision.groundPoint.collision = groundMesh_CollisionCheck(&playerAvatar.sphereCollider, &scene_Courtyard);
+	//playerAvatar.collision.groundPoint.collision = AgainstGround(&playerAvatar.sphereCollider, &playerAvatar.collision.groundPoint.currentCollisionPoint);
+
+	
+}
+
+u8 currentFrame = 0;
+u8 frameCounter = 0;
+//Vector2 tempVectors = {0,0}; //no longer used
+
+/*--------------------------------------------------------------------------*/
+/*---------------------------Player Control Functions-----------------------*/
+/*--------------------------------------------------------------------------*/
+
+void PlayerMovement();
+
+Vector2 userInput_Player; 
+Vector3 playerTempPos;
+u8 playerState = 0; //TO DO: temporarily used for "in motion" but will flesh this out with a state machine later
+
+float shootingCooldownTimer = 0.0f;
+int lowerArmTimerStart = 0; //after 3 seconds with no input, lower arm
+int lowerArmTimer = 0;  //after 3 seconds with no input, lower arm
+int lowerArm = 1; //after 1 second with no input, lower arm
+
+u8 shotCycle = 0;
+ProjectileObject projectileSpawns[8]; //maximum of 4 projectiles from player at a time
+u8 maxShot = 8;
+u8 recentShot = 0; //used for debugging
+u8 shotCounter = 0; //used for iterating array
+
+
+//Vector3 lastVelocity = {0,0,0};
+//Vector3 averageVelocity = {0,0,0};
+float lastZVelocity = 0.0f;
+float newZVelocity = 0.0f;
+
+void updatePlayer(Dynamic* dp)
+{	
+
+	
+    
+	updatePlayerAnim(); //NOTE: Update current animation frame based on player inputs from the previous frame and current frame of animation
+	userInput_Player = Player_Input(); //NOTE: calls Player_Input() function in controller.c which returns the X, Y inputs in a Vector2. The Player_Input function will grab values based on the controller settings set by the player
+	
+    lastZVelocity = playerAvatar.rigidBody.velocity.z;
+	
+	if(playerAvatar.isFalling != 1) //IF player is not jumping or falling then the player needs to re-set each frame
+		//SetVector3(&playerAvatar.rigidBody.velocity, 0,0,0);  //NOTE: resets the playerAvatar rigidBody velocity to 0,0,0 each frame
+		SetVector3(&playerAvatar.rigidBody.velocity, 0,0,playerAvatar.rigidBody.velocity.z);  //NOTE: resets the playerAvatar rigidBody velocity to 0,0,0 each frame
+	
+	
+	playerAvatar.collision.wallPoint.collision = 0; 
+	
+	//FireShot();
+	//UpdateShot();
+	
+	
+	CheckEnemyTargets();
+	FireShotv2();
+	UpdateShotv2();
+	
+
+
+	
+	if(userInput_Player.y >= 0.1f || userInput_Player.y <= -0.1f || userInput_Player.x >= 0.1f || userInput_Player.x <= -0.1f) 
+	{		
+		//NOTE: 	userInput_Player.x and .y are determined by player sensitivity settings. 
+		//NOTE:  If the inputs do not meet the minimum player sensitivity, the userInput_Player.x and userInput_Player.y will be set to 0.0f in the Player_Input function. 
+					//NOTE: Replace later with smoother motion  
+		
+		
+		
+		//TO DO NOTE: Adjust player rotation to make it smoother when movign around and when you begin moving again after a jump
+		playerAvatar.obj.rot.z = playerAvatar.rotation;
+		
+		if(playerAvatar.isFalling != 1 && playerAvatar.isJumping != 1)
+		{
+		
+		
+		
+			playerAvatar.rotation = atan2(userInput_Player.y, userInput_Player.x); //NOTE: get angle with atan2 and x, y inputs
+			playerAvatar.rotation = (playerAvatar.rotation * 57.29577); //NOTE: convert angle from radians to degrees 
+			//playerAvatar.rotation += 180.0f;
+			playerAvatar.rotation += 90.0f;
+			playerAvatar.rotation = playerAvatar.rotation + mainCamera.cameraOrbit;
+			if(playerAvatar.rotation >360.0f)
+						playerAvatar.rotation = playerAvatar.rotation - 360.0f;				
+
+
+		}
+		
+		
+		
+		
+				
+		if(abs(userInput_Player.y) + abs(userInput_Player.x) > 60.0f)	
+		{
+			playerAvatar.rigidBody.speed = lerp(playerAvatar.rigidBody.speed, PLAYER_MAX_SPEED, 0.1f ); //increase speed from current speed to max speed if x+y inputs pass a threshold
+			playerState = 1;
+		}
+		else
+		{
+			playerAvatar.rigidBody.speed = lerp(playerAvatar.rigidBody.speed, PLAYER_MIN_SPEED, 0.1f ); //increase speed from current speed to max speed if x+y inputs remain below a "max speed" threshold
+			playerState = 2;
+		}	
+		//playerAvatar.obj.pos = playerAvatar.rigidBody.currentPos; //if no collision is found, apply to player character as currentPosition
+
+	//NOTE: calculate next movement and store it in playerAvatar.rigidBody.nextPos
+			
+		
+		PlayerMovement();
+        ApplyGravity();
+        
+        PlayerJumpV2();
+        playerAvatar.rigidBody.velocity.z = newZVelocity;
+		playerAvatar.obj.pos = playerAvatar.rigidBody.currentPos; //if no collision is found, apply to player character as currentPosition
+		//Add jump and movement velocity:
+		VectorAdd(&playerAvatar.rigidBody.nextPos, playerAvatar.rigidBody.nextPos, playerAvatar.rigidBody.velocity );	
+		playerAvatar.rigidBody.currentPos = playerAvatar.rigidBody.nextPos;
+		
+		
+		
+		
+		
+	//NOTE: calculate the updated collider position based off of playerAvatar.rigidBody.nextPos but offset on the Z-axis by the radius of the sphere
+		SetVector3(&playerAvatar.sphereCollider.center, 	playerAvatar.rigidBody.nextPos.x,playerAvatar.rigidBody.nextPos.y,playerAvatar.rigidBody.nextPos.z + (playerAvatar.sphereCollider.radius));
+    SetVector3(&playerAvatar.wallCollider.center, 	playerAvatar.rigidBody.nextPos.x,playerAvatar.rigidBody.nextPos.y,playerAvatar.rigidBody.nextPos.z + 10.0f +(playerAvatar.wallCollider.radius));
+	//NOTE: After calculating the next player position based on velocity, check to see if the player is colliding with the ground plane
+		//and check to see what the players current Z axis should be based on the value of the nearest point on the ground plane.
+
+		
+		
+		PlayerGroundCollision(dp);	
+		
+	//NOTE: check to see if the next movement causes a collision and update playerAvatar.rigidBody.nextPos if so
+		PlayerCollision(dp); 
+				
+	//NOTE: set playerAvatar.rigidBody.currentPos as playerAvatar.rigidBody.nextPos for updating player position and collision checks in the next frame
+		
+		
+	//NOTE: after horizontal movement is done, check for vertical movement (gravity) 
+	//and collision, then update playerAvatar.rigidBody.currentPos.z
+	// - RAY/LINE COLLISION from center of player to a tri. 
+	// - The ray/line will go straight down on the z axis only
+
+		playerAvatar.playerNormal = playerAvatar.rigidBody.velocity;
+		VectorNormalize(&playerAvatar.playerNormal);	
+	//	speed
+		if(playerAvatar.isFalling || playerAvatar.isJumping || playerAvatar.rigidBody.speed > 0.01f )
+			playerAvatar.rigidBody.currentPos = playerAvatar.rigidBody.nextPos;
+	}
+
+	
+	else
+	{	
+		playerAvatar.obj.pos = playerAvatar.rigidBody.currentPos; //if no collision is found, apply to player character as currentPosition
+
+		playerAvatar.rigidBody.speed = lerp(playerAvatar.rigidBody.speed, 0.0f, 0.4f ); //slowd own to a stop
+		ApplyGravity();
+       
+		PlayerJumpV2();
+		 playerAvatar.rigidBody.velocity.z = newZVelocity;
+		VectorAdd(&playerAvatar.rigidBody.nextPos, playerAvatar.rigidBody.nextPos, playerAvatar.rigidBody.velocity );				
+		//playerAvatar.rigidBody.currentPos = playerAvatar.rigidBody.nextPos;
+
+		SetVector3(&playerAvatar.sphereCollider.center, 	playerAvatar.rigidBody.nextPos.x,playerAvatar.rigidBody.nextPos.y,playerAvatar.rigidBody.nextPos.z + (playerAvatar.sphereCollider.radius));
+			SetVector3(&playerAvatar.wallCollider.center, 	playerAvatar.rigidBody.nextPos.x,playerAvatar.rigidBody.nextPos.y,playerAvatar.rigidBody.nextPos.z + 10.0f +(playerAvatar.wallCollider.radius));
+		if(playerAvatar.rigidBody.speed < PLAYER_MIN_SPEED)
+		{ 	
+			//if(playerAvatar.collision.groundPoint.collision == 0)
+            PlayerGroundCollision(dp);	
+			PlayerCollision(dp);	
+			playerState = 0;			
+		}
+
+		
+		else
+		{
+			PlayerGroundCollision(dp);	
+			PlayerCollision(dp); //check to see if this movement causes a collision
+		}		
+		
+		
+		if(playerAvatar.isFalling || playerAvatar.isJumping || playerAvatar.rigidBody.speed > 0.01f )
+			playerAvatar.rigidBody.currentPos = playerAvatar.rigidBody.nextPos;
+		
+	//	playerAvatar.rigidBody.currentPos = playerAvatar.rigidBody.nextPos;
+	}
+	
+}
+
+int fireRate = 2; //time that must pass before another shot was fired
+int lastShotTime = 0; //last time a shot was fired
+u8 active = 0;
+
+void CheckEnemyTargets()
+{
+	return;
+		if(ContTriger[0].trigger & R_TRIG)
+		{ //NOTE: when the player taps the R button it cycles between current active nearby enemies			
+		
+		
+				if(enemyTargets.isActive == 0)
+				{					 
+					//GetActiveSpikey(&enemyTargets);
+					//compare distance of enemies and target the closest one. For a test I'll just be targeting a specific one
+					enemyTargets.activeTarget = enemyTargets.enemyObjects[active];
+					ui_target_init(&enemyTargets);
+					enemyTargets.isActive = 1;
+				}
+				
+				else if(enemyTargets.isActive == 1)
+				{				
+					if(active < 3)					
+						active++;					
+					else
+					{
+						active = 0;
+						enemyTargets.isActive = 0;
+					}
+						
+					enemyTargets.activeTarget = enemyTargets.enemyObjects[active];
+					ui_target_init(&enemyTargets);
+					
+				}
+			
+		}	
+		
+
+}
+
+void FireShotv2()
+{	//update to include a fire rate based on time
+
+	if(ContTriger[0].button & Z_TRIG)
+	{		
+		playerAvatar.playerShooting = 1;
+		lowerArmTimerStart = GetSeconds();
+		
+		if(abs(lastShotTime - GetFPS_6()) > fireRate)
+		{		
+			projectileSpawns[shotCycle].isActive = 1;
+		
+			lastShotTime = GetFPS_6();			
+			spawn_player_shot(&projectileSpawns[shotCycle], enemyTargets.activeTarget);	
+			//play blaster sound
+			PlaySfxVolume(0, 96);
+			
+			recentShot = shotCycle; 
+			
+			if(shotCycle >= maxShot-1)	
+				shotCycle = 0;				
+			else
+				shotCycle++;			
+			//projectileSpawns[shotCycle].isActive = false;
+				
+		}
+			//projectileSpawns[shotCycle]
+	}
+	
+		
+}	
+
+	
+	
+
+
+void UpdateShotv2()	
+{
+	if(playerAvatar.playerShooting == 1)
+	{		
+		lowerArmTimer = GetSeconds();
+		
+		if(abs(lowerArmTimer - lowerArmTimerStart) > lowerArm)
+		{	//reset arm position
+			playerAvatar.playerShooting = 0;		
+			lowerArmTimerStart = 0; 
+		}			
+	}
+	
+	
+	for(shotCounter = 0; shotCounter < maxShot; shotCounter ++)
+	{
+		update_player_shot(&projectileSpawns[shotCounter]);
+		
+	}
+	
+	Debug_MiscVar[0] = projectileSpawns[recentShot].obj.pos;
+	Debug_MiscVar[1] = projectileSpawns[recentShot].obj.rot;
+	Debug_MiscVar[2] = projectileSpawns[recentShot].obj.scl;
+	Debug_MiscVar[3] = projectileSpawns[recentShot].obj.scl;
+}
+		
+        
+        
+ //u8 jumpMultiplier = 50; //for increasing the strength of the jump (testing purposes)
+       
+        
+void PlayerMovement()
+{
+	Vector3 tempVelocity = {0,0,0};
+	
+	//return;
+	tempVelocity.z = playerAvatar.rigidBody.velocity.z;
+    if(playerAvatar.isFalling != 1)
+        SetVector3(&playerAvatar.rigidBody.velocity, userInput_Player.x, userInput_Player.y, playerAvatar.rigidBody.velocity.z);	//begins velocity calculation based on userInput_player set in updatePlayer function
+	else
+        SetVector3(&playerAvatar.rigidBody.velocity, playerAvatar.rigidBody.velocity.x, playerAvatar.rigidBody.velocity.y, playerAvatar.rigidBody.velocity.z);	//begins velocity calculation based on userInput_player set in updatePlayer function
+
+    
+    playerAvatar.rigidBody.velocity = RotateAround(playerAvatar.rigidBody.velocity, playerAvatar.rigidBody.centerMass, mainCamera.cameraOrbit);
+	
+	//playerAvatar.rigidBody.velocity.x = tempVelocity.x;
+	//playerAvatar.rigidBody.velocity.y = tempVelocity.y;
+	//playerAvatar.rigidBody.velocity.z = tempVelocity.z;
+    //playerAvatar.rigidBody.velocity.z = tempVelocity.z*jumpMultiplier;
+	VectorNormalize(&playerAvatar.rigidBody.velocity);
+
+//NOTE: bases movement on time elapsed so it is independent of framerate.
+	VectorScale(&playerAvatar.rigidBody.velocity, ((playerAvatar.rigidBody.speed + PLAYER_MAX_JUMP_SPEED) * (float)GetDeltaTime()));
+    
+    
+    
+   // smoothVelocity();
+
+    //tempVelocity
+    
+    /*
+    Velocity verlet integration
+    
+    old velocity + new velocity = next velocity
+    next velocity * .5 * deltatime
+    
+    
+    
+    
+    */
+    
+    //VectorNormalize(&tempVelocity);
+    //VectorScale(&tempVelocity, (playerAvatar.rigidBody.speed * (float)GetDeltaTime()));
+    //playerAvatar.rigidBody.velocity.z = tempVelocity.z * jumpMultiplier;
+
+    
+    //Calculate jumping velocity
+   // VectorNormalize(&tempVelocity);
+   // VectorScale(&tempVelocity, (playerAvatar.rigidBody.speed * (float)GetDeltaTime()));
+	
+	
+
+	
+}
+
+void PlayerMovement_OLDVERSION()
+{
+	Vector3 tempVelocity = {0,0,0};
+	
+	//return;
+	tempVelocity.z = playerAvatar.rigidBody.velocity.z;
+	SetVector3(&playerAvatar.rigidBody.velocity, userInput_Player.x, userInput_Player.y, playerAvatar.rigidBody.velocity.z);	//begins velocity calculation based on userInput_player set in updatePlayer function
+	playerAvatar.rigidBody.velocity = RotateAround(playerAvatar.rigidBody.velocity, playerAvatar.rigidBody.centerMass, mainCamera.cameraOrbit);
+	
+	//playerAvatar.rigidBody.velocity.x = tempVelocity.x;
+	//playerAvatar.rigidBody.velocity.y = tempVelocity.y;
+	//playerAvatar.rigidBody.velocity.z = tempVelocity.z;
+    
+	VectorNormalize(&playerAvatar.rigidBody.velocity);
+
+//NOTE: bases movement on time elapsed so it is independent of framerate.
+	VectorScale(&playerAvatar.rigidBody.velocity, (playerAvatar.rigidBody.speed * (float)GetDeltaTime()));
+    playerAvatar.rigidBody.velocity.z = tempVelocity.z;
+    
+    //Calculate jumping velocity
+   // VectorNormalize(&tempVelocity);
+   // VectorScale(&tempVelocity, (playerAvatar.rigidBody.speed * (float)GetDeltaTime()));
+	
+	
+
+	
+}
+
+
+void PlayerCollision(Dynamic* dp)
+{
+	u8 tempCollisionBool = 0;			
+	//TO DO NOTE: Add a script to cycle through all nearby collision objects
+
+	//TO DO NOTE: test collision against different objects
+	tempCollisionBool = wallMesh_CollisionCheck(&playerAvatar.wallCollider, &scene_Courtyard);	
+	//	SetVector3(&playerAvatar.wallCollider.center, 	playerAvatar.rigidBody.nextPos.x,playerAvatar.rigidBody.nextPos.y,playerAvatar.rigidBody.nextPos.z + 10.0f +(playerAvatar.wallCollider.radius));
+	//NOTE: If tempCollisionBool is triggered, set the variable playerAvatar.collision.wallPoint.collision as true
+	if(tempCollisionBool == 1)
+		playerAvatar.collision.wallPoint.collision = tempCollisionBool; 
+
+}
+
+
+void PlayerGroundCollision(Dynamic* dp)
+{
+	//playerAvatar.collision.groundPoint.collision = 0;	
+	//return;
+	playerAvatar.collision.groundPoint.collision = groundMesh_CollisionCheck(&playerAvatar.sphereCollider, &scene_Courtyard);
+	
+	//if(playerAvatar.isJumping == 0)
+	//	playerAvatar.collision.groundPoint.collision = playerAvatar.collision.groundPoint.collision;
+	
+}
+
+
+//playerAvatar.rigidBody.gravityStrength
+
+
+
+
+
+u8 chargeLastUpdate;
+//u8 chargeTimeElapsed;
+
+u8 finalChargedJump; 
+u8 chargeJump; //The current charge of the jump force
+u8 chargeJumpMIN = 10; //The MINIMUM charge of the jump force
+u8 chargeJumpMAX = 30; //The MAXIMUM charge of the jump force
+u8 jumpTimer = 0;
+u8 chargeTimer = 0;
+u8 canBeginJump = 1;
+u8 pressB = 0;
+u8 grounded = 0;
+
+u8 gravityLastUpdate = 0;
+u8 gravityDifference = 0;
+
+
+
+
+float initialJumpVelocity = 10.0f;
+
+float maxJumpHeight = 8.0f;
+float maxJumpTime = 1.0f;
+float groundedGravity = 0.5f;
+float gravity = 9.5f;
+
+
+void PlayerJumpCharge()
+{
+    //Get player input. How long the jump button is held determines the initial force.
+    u8 chargeUpdateRate = GetFPS_20();
+    pressB = 0;
+    //tempFrameCounter = GetFPS_20();
+    
+    
+    if (ContTriger[0].button & B_BUTTON)
+    {
+        pressB = 1;
+    }
+        
+    if(ContTriger[0].trigger & B_BUTTON && canBeginJump == 1)
+	{
+       // chargeJump = 0;
+        playerAvatar.isJumping = 1;
+        jumpTimer = 0;
+        chargeJump = chargeJumpMIN;
+        canBeginJump = 0;
+        finalChargedJump = 0;
+        playerAvatar.rigidBody.velocity.z = initialJumpVelocity;
+        
+	}
+    
+    if(chargeLastUpdate != chargeUpdateRate)
+    {
+        if (ContTriger[0].button & B_BUTTON && finalChargedJump == 0)
+        {          
+            if(chargeJump < chargeJumpMAX)
+                chargeJump += 2;
+                
+            if(chargeJump > 1 && chargeJump < chargeJumpMAX)
+                jumpTimer ++; //Temporary test to compare number of frames on console and emulator. This number should be appx the same on console and emulator  
+
+            else
+                finalChargedJump = chargeJump;   
+        }
+        
+        else if( finalChargedJump == 0)
+            finalChargedJump = chargeJump;
+
+        chargeLastUpdate = chargeUpdateRate;   
+        
+    }
+    
+    
+    
+   // if(chargeJump > 1 &&  chargeJump < chargeJumpMAX)
+       // frameTest ++; //Temporary test to compare number of frames on console and emulator
+        
+        
+    Debug_MiscVar[1].x = pressB;
+    //Debug_MiscVar[1].y = gravity;          
+   // Debug_MiscVar[1].z = jumpTimer;
+   // Debug_MiscVar[1].z = finalChargedJump;
+    Debug_MiscVar[1].y = playerAvatar.collision.groundPoint.collision;
+    Debug_MiscVar[1].z = playerAvatar.rigidBody.velocity.z;
+    
+}
+
+
+
+
+void initJump()
+{
+    float timeToApex = maxJumpTime * 0.5f;
+    gravity = (-2 * maxJumpHeight) / powf(timeToApex, 2.0f);
+    initialJumpVelocity = (2 * maxJumpHeight) / timeToApex;
+    //Mathf.Pow(TimeToApex, 2);
+   // gravity = 97.0f;
+    
+       
+}
+
+
+void ApplyGravity()
+{
+
+
+
+    if( playerAvatar.collision.groundPoint.collision == 0)
+    {
+       // playerAvatar.rigidBody.velocity.z -= gravity * GetDeltaTime();
+       // playerAvatar.isFalling = 1;
+        
+        
+         newZVelocity = playerAvatar.rigidBody.velocity.z - (gravity * GetDeltaTime());
+         newZVelocity = (lastZVelocity + newZVelocity) * .5f;
+    }
+    
+    else
+    {
+        playerAvatar.isJumping = 0;
+        playerAvatar.isFalling = 0;
+    }
+    
+/*
+    if( playerAvatar.collision.groundPoint.collision == 1 && playerAvatar.isJumping == 0)
+        playerAvatar.rigidBody.velocity.z = 0;
+        
+    else if( playerAvatar.collision.groundPoint.collision == 1)
+        playerAvatar.rigidBody.velocity.z -= groundedGravity;
+    else
+        playerAvatar.rigidBody.velocity.z -= gravity * GetDeltaTime();
+        */
+}
+
+
+void PlayerJumpV2()
+{
+
+    if (ContTriger[0].button & B_BUTTON)
+    {
+        pressB = 1;
+    }
+    
+    else
+        pressB = 0;
+
+    if(pressB != 1 && playerAvatar.collision.groundPoint.collision == 1)
+    {
+        canBeginJump = 1;
+        grounded = 1;
+    }
+        
+    if(playerAvatar.collision.groundPoint.collision == 1)
+    {
+        newZVelocity = 0.0f;
+        
+        if(pressB == 1 && canBeginJump == 1)
+        {
+            newZVelocity = initialJumpVelocity;
+            grounded = 0;
+            canBeginJump = 0;    
+        }
+    }
+    
+    else
+    {
+        if(pressB != 1 && newZVelocity > 0.0f)
+        {
+            newZVelocity -= gravity * GetDeltaTime();
+        }        
+        
+        newZVelocity -= gravity * GetDeltaTime();
+    }
+    
+    
+    
+        Debug_MiscVar[1].x = pressB;
+    //Debug_MiscVar[1].y = gravity;          
+   // Debug_MiscVar[1].z = jumpTimer;
+   // Debug_MiscVar[1].z = finalChargedJump;
+    Debug_MiscVar[1].y = playerAvatar.collision.groundPoint.collision;
+    Debug_MiscVar[1].z = newZVelocity;
+    
+}
+
+void PlayerJumpV2_WIP()
+{
+    
+    PlayerJumpCharge();
+    
+            if(playerAvatar.isJumping == 1 &&  playerAvatar.collision.groundPoint.collision == 1 )
+            {
+               playerAvatar.sphereCollider.enabled = 1;
+               // playerAvatar.isJumping = 1;
+                
+            }
+            
+
+            if(playerAvatar.isJumping == 1 && playerAvatar.collision.groundPoint.collision == 1)
+            {
+                playerAvatar.isJumping = 0;
+                canBeginJump = 1;
+            }    
+            if(playerAvatar.rigidBody.velocity.z <= 0 && playerAvatar.isJumping == 1 )
+            {
+                playerAvatar.sphereCollider.enabled = 1;
+                playerAvatar.isJumping == 0;
+                //playerAvatar.rigidBody.velocity.z;
+            }
+                
+    
+           // if ( playerAvatar.isJumping == 1 && playerAvatar.animRig.animID != 2)
+          //  playerAvatar.animRig.animID = 2;
+    
+    
+    /*
+        if ( playerAvatar.isJumping == 1 && playerAvatar.animRig.animID != 2)
+            playerAvatar.animRig.animID = 2;
+                
+        if (playerAvatar.isJumping == 1 && playerAvatar.animRig.animID == 2 )
+        {
+            playerAvatar.sphereCollider.enabled = 0;
+            
+            if(finalChargedJump == 0 && animFrame >= 2 )            
+                playerAvatar.rigidBody.velocity.z = chargeJump;
+        }
+    */
+    
+}
+
+
+
+
+
+
+
+// //u8 jumpButtonDown = 0;
+
+// //float jumpTimerStart = 0;
+// //float jumpTimerElapsed = 0;
+// //float finalJumpTime = 0;
+// //float maxJump	=  50.0;
+// float maxJump = 8;
+// float jumpingForce = 60.0f;
+// float resetJumpingForce = 60.0f;
+// float jumpingForceMultiplyer = 10.0f;
+// float resetJumpingMultiplyer = 10.0f;
+// u8 canJump = 1;
+// u8 jumpTrigger = 0;
+// float startingJumpZ;
+// u8 counter;
+// u8 fallCounter;
+
+
+// u8 playerFallingTimer;
+// int FrameCounter = 0;
+// int FrameOffset = 0;
+
+// u8 jumpCounter = 0;
+// float MAX_JUMP = 350.0f;
+// float MIN_JUMP = 50.0f;
+// float MAX_JUMP_SPEED = 1600.0f;
+// float MAX_FALL_SPEED = -30.0f;
+// float currentJumpSpeed = 0.0f;
+// float jumpDifference = 0.0f;
+// int jumpFrameDifference = 1;
+// int frameStopwatch;
+
+void defaultRig()
+{
+
+    playerAvatar.animRig.animID = 0;
+
+	//animFrame = 12;
+	player_head_UpdateFrame();
+	player_chest_UpdateFrame();
+	player_right_arm_UpdateFrame();
+	player_right_arm_lower_UpdateFrame();
+	player_left_arm_UpdateFrame();
+	player_left_arm_lower_UpdateFrame();	
+	player_right_leg_UpdateFrame();
+	player_right_leg_lower_UpdateFrame();
+	player_left_leg_UpdateFrame();
+	player_left_leg_lower_UpdateFrame();	    
+    player_chest_glow_UpdateFrame();
+    
+            	player_foot_L_UpdateFrame();
+        player_foot_R_UpdateFrame();
+	
+	//set default lighting info for first room. This is stored in the playerAvatar struct. During gameplay it will be updated as the player moves to different triggers in the environment 
+	//playerAvatar.playerLighting = player_lighting;
+	//player_lighting = playerAvatar.playerLighting;
+	
+	//playerAvatar.envLightSide = test_lighting.l[0]; 
+	//playerAvatar.envLightGround = test_lighting.l[1];
+	
+	//player_lighting.l[0] = playerAvatar.envLightSide;
+	//player_lighting.l[1] = playerAvatar.envLightGround;
+}
+
+void nextPlayerAnimFrame()
+{	
+
+
+   // playerAvatar.animRig.animID = 2;
+
+
+
+	player_head_UpdateFrame();
+	player_chest_UpdateFrame();
+	player_right_arm_UpdateFrame();
+	player_right_arm_lower_UpdateFrame();
+	player_left_arm_UpdateFrame();
+	player_left_arm_lower_UpdateFrame();	
+	player_right_leg_UpdateFrame();
+	player_right_leg_lower_UpdateFrame();
+	player_left_leg_UpdateFrame();
+	player_left_leg_lower_UpdateFrame();		
+	Player_Shadow_UpdateFrame();
+        player_chest_glow_UpdateFrame();
+        
+    player_foot_L_UpdateFrame();
+    player_foot_R_UpdateFrame();
+        
+    
+	
+}
+
+void nextPlayerLightingState()
+{
+	//pass new lighting state from playerAvatar to player_lighting
+	player_lighting = playerAvatar.playerLighting;
+}
+
+/*END------------------------Player Control Functions-----------------------*/
+
+
+
+/*--------------------------------------------------------------------------*/
+/*------------------------Player Rendering and Animating--------------------*/
+/*--------------------------------------------------------------------------*/
+
+void DrawPlayerModel()
+{	
+
+	//return;
+
+	//NOTE: update position, rotation, and scale of player model and store in a matrix:
+	//TEXTURE_FOG_LIGHT(glistp, 42,26,40,255,800,980);		
+		
+	
+	//NOTE: RenderPlayerRig(pointer to RigObject, pointer to RigObject function) 
+	//This function combine the relative pos/rot etc of each RigObject with that of the player object in a matrix 
+	//and then call the function to render the RigObject
+	//RigObject head;	RigObject chest;
+	//RigObject armR[2];		RigObject armL[2];
+	//RigObject legR[2];	RigObject legL[2];		
+		PlayerObjMTX(&playerAvatar); 		
+        
+		TEXTURE_FOG_LIGHT(glistp, 42,26,40,255,800,980);	
+        
+        PlayerRigObjectMTX(&playerAvatar.animRig.joint.head, &player_head_PolyList); 		
+		PlayerRigObjectMTX(&playerAvatar.animRig.joint.chest, &player_chest_PolyList); 
+        
+        TEXTURE_FOG_LIGHT(glistp, 42,26,40,255,800,980);	
+        
+		
+		PlayerRigObjectMTX(&playerAvatar.animRig.joint.armR[0], &player_right_arm_PolyList); 
+		PlayerRigObjectMTX(&playerAvatar.animRig.joint.armR[1], &player_right_arm_lower_PolyList); 
+		
+		PlayerRigObjectMTX(&playerAvatar.animRig.joint.armL[0], &player_left_arm_PolyList); 
+		PlayerRigObjectMTX(&playerAvatar.animRig.joint.armL[1], &player_left_arm_lower_PolyList);
+		
+		PlayerRigObjectMTX(&playerAvatar.animRig.joint.legR[0], &player_right_leg_PolyList); 
+		PlayerRigObjectMTX(&playerAvatar.animRig.joint.legR[1], &player_right_leg_lower_PolyList); 
+        PlayerRigObjectMTX(&playerAvatar.animRig.joint.legR[2], &player_foot_R_PolyList); 
+		
+		PlayerRigObjectMTX(&playerAvatar.animRig.joint.legL[0], &player_left_leg_PolyList); 
+		PlayerRigObjectMTX(&playerAvatar.animRig.joint.legL[1], &player_left_leg_lower_PolyList);
+        PlayerRigObjectMTX(&playerAvatar.animRig.joint.legL[2], &player_foot_L_PolyList);
+                            
+        TEXTURE_FOG_VTXCOL(glistp, 75, 75, 55, 50,980,1000);					 
+
+		
+		PlayerRigObjectMTX(&playerAvatar.animRig.joint.shadow, &Player_Shadow_PolyList);
+		//Shadow_PolyList();
+        
+        
+        TEXTURE_FOG_VTXCOL(glistp, 50, 75, 75, 0,980,1000);					 
+
+        //player_chest_glow_PolyList();
+        
+ 		PlayerRigObjectMTX(&playerAvatar.animRig.joint.glowFX, &player_chest_glow_PolyList);       
+
+        
+		TEXTURE_FOG_LIGHT(glistp, 42,26,40,255,800,980);	//Fog and texture settings	
+
+		for(shotCounter = 0; shotCounter < maxShot; shotCounter++)
+		{
+			if(projectileSpawns[shotCounter].isActive == 1)
+			{
+				draw_player_shot(&projectileSpawns[shotCounter]);
+			}
+		}
+        
+
+		
+}
+
+
+
+static void updatePlayerAnim()
+{
+	
+	int tempAnimationTimer = 0;
+	int frameDifference = 0; //in the event of extreme slowdown, check how much time has elapsed
+	//return;
+	//update lighting on playerModel.c passed to playerAvatar via scene triggers in level scripts
+	nextPlayerLightingState(); 
+	
+	tempAnimationTimer = GetFPS_30(); //animation playback at 30 fps gives the best, most consistent performance
+	
+	//return;
+	
+	
+	if (tempAnimationTimer != playerAnimationTimer)
+	{
+		frameDifference = tempAnimationTimer-playerAnimationTimer;
+	
+		playerAnimationTimer = tempAnimationTimer;
+		
+        
+        if (playerAvatar.animRig.animID != 2)        
+        {
+            if(playerAvatar.isFalling == 0)
+            {	
+                //animFrame += 1;		
+                if(playerState == 2)	//walking
+                {
+                    beginFalling = 0;
+                
+                    if(animFrame < 9)
+                        animFrame += frameDifference;
+                
+                    else if(animFrame < 32)		
+                        animFrame += frameDifference; 					
+                    
+                    else if(animFrame >= 32)			
+                        animFrame = 9; 
+                }
+                
+                if(playerState == 1)	//running
+                {		
+                
+                    beginFalling = 0;
+                
+                    if(animFrame < 9)
+                        animFrame += frameDifference;
+                
+                    else if(animFrame < 32)		
+                        animFrame += frameDifference; 					
+                    
+                    else if(animFrame >= 32)			
+                        animFrame = 9; 
+                    
+                }
+                
+                else if(playerState == 0) //idle
+                {
+                    beginFalling = 0;
+                
+                    beginFalling = 0;            
+                    animFrame = 1;
+                }
+            
+            }
+        }
+		
+		//else if(playerAvatar.isFalling == 1 || playerAvatar.isJumping == 1)
+        else if (playerAvatar.animRig.animID == 2)
+		{
+            if(beginFalling == 0)
+            {
+                animFrame = 0;
+                beginFalling = 1;
+            }
+            
+            else if( animFrame < 8)
+            {
+                animFrame += 1; 
+            }
+            
+            else
+            {
+                animFrame = 8;
+            }
+            //if animFrame ==
+        
+			//animFrame = 1;
+		}
+		
+		nextPlayerAnimFrame();
+	}
+	
+	
+	//play step sound
+	if(playerAvatar.isFalling == 0)
+	{
+		if(animFrame == 9 || animFrame == 24)
+				PlaySfx_Footstep(6);
+                
+        //beginFalling = 0;
+	}
+
+}
+
+
+
+/*END---------------------Player Rendering and Animating--------------------*/
+
+
+

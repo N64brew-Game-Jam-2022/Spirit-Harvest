@@ -1,0 +1,25 @@
+/*
+
+//-------------------- TROUBLE SHOOTING BUILD PROCESS -------------------------
+//If moving files to a new Dir after a previous build:
+	- first make sure you do a full build with files in its current Dir
+	- Next, drag the scripts (*.c) and object file (*.o) for that script to new Dir. (Avoid cut and paste, drag it to the correct Dir)
+	- Once your *.c and *.o files are in the new location, delete the *.o file... 'Make' the file at the new location
+	- Make should then rebuild your file in the new location. 
+	- It is recommended that you run 'clean.bat' after moving files around to clean all object files (*.o). 
+	- Once all folders are clean, run 'Make' once again to be sure all dependencies / build order are correct.
+#when adding new file, save file in the location where it will be stored. Then build file once. 
+#After your new file builds successfully, clean project and do a clean build to make sure everything compiles as expected.
+#TO DO NOTE 01/20/2021: continue organizing level scripts and removing old, unused content.
+
+
+
+
+
+
+
+
+
+
+
+*/

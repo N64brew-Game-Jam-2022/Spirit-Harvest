@@ -1,0 +1,413 @@
+{\rtf1\ansi\ansicpg1252\deff0\deflang1033{\fonttbl{\f0\fswiss\fcharset0 Arial;}}
+{\*\generator Msftedit 5.41.15.1515;}\viewkind4\uc1\pard\f0\fs20\par
+TO DO NOTES 3/19/2022\par
+\b - attempt to do a dithering effect when a large object is between the player and the camera?\par
+- Quick fixes before sharing demo:\par
+\tab - improve jump movement via lerp?\par
+\tab - basic jumping adjustment \par
+\tab - instead of stopping all movement when airborne, switch to a minimum speed only\par
+\tab - re-texture space ship\par
+\tab - combine all of the overlook geometry into a single static mesh\par
+\par
+\tab\b0 - implement basic wall jumping\par
+\tab - when jumping, have the camera look at the players shadow (maybe?) \par
+\tab - add power lines to improve the light of sight navigation in the caves\par
+\tab - clean up unused code\par
+\b\par
+\b0\tab - place "offline" door at entrance to the overlook area from the landing zone\b\par
+\b0\tab - fix fog on the vines in the courtyard area\par
+\tab - add glowing mushrooms in caves to light them up slightly\par
+\tab - fix collision on doorway into the landing pad area\par
+\tab - add simple menu to choose spawn location and change some player settings like camera speed\par
+\tab - create a simple space ship model\par
+\par
+\par
+\par
+\b\i -ART \par
+- create updated LOD model of the solar panel\par
+- Split the overlook area into 2 collision zones\b0\par
+\b - combine the polygons on the back of the solar panels to reduce poly count\par
+- Create new texture for the solar panel "support" beams and back of the panels.\par
+\b0 - create glowing "mushroom" like objects for caves.\par
+- Finish hanging vines and vines wrapped around the tree\par
+- add broken door to exit onto overlook\par
+- Finish player walking animation\par
+\par
+\b CODE\par
+- Clean up names of the cave parts and remove unused \par
+- clean up unused code\par
+- build better skybox that doesn't suck\par
+\b0\i0 - Update exporter to automatically break apart a larger image into 4 smaller images\par
+- create a "Head" collision check when jumping to keep player from jumping through walls\b\par
+\b0 - shadow currently wobbles when on uneven ground. \i\par
+  - wall slide needs to push you away from the wall at a slightly faster rate than gravity pulls you down\par
+- Have some slight air control so that you can refine your jumps\par
+\par
+\b\par
+\par
+- Refine collision around waterfall and add in rubble / vine model / texture\par
+- Have wall slide push player away from wall faster than gravity pulls them down\par
+- Tweak the collapsed pillar layout and collision for easier platforming\par
+\par
+-Refine LOD models and add LOD model for overlook area\par
+-Collision for solar array\par
+- Wall jump when above the ground, against the wall. Jump in the opposite direction\par
+- LOD test worked, set up a more automatic way of exporting this info to speed up level creation.\par
+- Set up a way to turn LOD on / off for performance gains?\par
+\b0\i0 - Add PlayerSpecialCollision() boxes for water and adjust speed of player by slope stepeness\par
+- Come up with more efficient way to check for lighting and  water collision\par
+\par
+- Rehaul the way that scene collision is structured and set it up to be automatically done upon export from blender\par
+- Re-do shadow casting so that it uses a ray pointed down rather than the last collision point\par
+- When facing the camera, keep the camera at a further distance\par
+- Set up camera debug menu\par
+- Set up new transitionIn and transitionOut animations\par
+\par
+\par
+- Replace all animFrame updates with the new function call \par
+\tab ex: \i NextCharAnimFrame(11, 11, 11, 11, frameDifference); \par
+\i0 - try to figure out what is causing random lockups\ul\b\par
+\ulnone\b0 -instead of spawning shadow at last ground position, spawn it at the nearest ground position\par
+- If player changes direction while shooting, replay the shooting transition animation\par
+\par
+\b - Adjust camera sensitivity on console so that top speed will increase based on current frame rate similar to the jumping velocity.\par
+\tab - Adjust variables in...\par
+\tab\tab SetAdjustAnimRate() in engineTools.c\par
+\tab\tab CameraControl_C() in view.c\par
+\par
+\b0\par
+- Make movement speed impacted by slope of collision... (calculate this in a simple manner based on the previous Z position and next Z position and whether or not the player is grounded?)\par
+- make edge case check where jump will cancel out if player is jumping up a steep slope so that player doesn't get stuck in "jumping" pose while still on the ground.\b\par
+\b0 - Check for the expansion pack at start up! \par
+- create low poly versions of the landing zone, the cave area, and the overlook to improve frame rate.\par
+- test simple particle system for falling leaves, splashes in water, and dust in caves\par
+- create a "fixed camera view" trigger to draw the player's attention to certain elements of the scene. Begin by testing this on the overlook area.\par
+- Figure out the best method for wall jumping.\par
+- Re-do state machine to be less error prone\par
+- Break up movement into several functions for easier editing\b\par
+- Jump rate of fall is different. Have this be calculated by a hard number rather than delta time alone?\par
+\par
+\b0 - Jumping on emulator has more frames but he doesn't jump as high. The "counter" is the issue here because it is applying by frames... come up with a different solution. \b\par
+\b0 - Continue work on "charging" each jump\par
+- Begin applying force\par
+- Look for a code solution, watch tutorials on jumping controls... maybe look at your old unity projects?\b\par
+\b0 - The problem, stupidly, is the current character "state". When in running or walking state, unable to switch to jumping state.\par
+- Examine the playerState = 1 and playerState = 2 code and look into a new player state for jumping/falling?\par
+- Set up jump charge, have it update over time, sync the vertical velocity to character animation, set up a "jump speed" to be added to the player's current max speed.\i\par
+- follow the jump script from unity project\b\par
+\par
+- Completely re-do jumping to be based on frame rate\par
+- Create a new function in main to switch which segments are loaded during which stages.\b0\i0\par
+- Create a check for all vertices to see if UV coordinates are greater than the max. If so, apply a .5 scaler and adjust the Shift+s and Shift+t to accomodate\par
+- Removed sttile multiplication from export.py... double check to make sure this works correctly!\par
+- Make a check for the size of texture coordinates. If they're too large, reduce\b\par
+- check Vtx calculations for S,T coordinates in export.py\par
+- Add an output to the negative check so that it also checks for numbers too large!\b0\par
+- Continue re-exporting new geometry using the new exporter to test\par
+\b - Add an option for "precision texturing" or "large object texturing" \b0\par
+- \b Added a check for UV coordinates\b0  to make sure that a vertex modified in tri2 (modifyVertexCompare[1][*]) is not altering an unmodified vertex in tri1 (gSP2TriangleHold[0][*]+offset). \b Double check this work by re-exporting recent objects.\b0\par
+    \par
+\par
+\par
+DONE 12/29/2021\par
+\i - Reduce the size of the shadow\par
+- use ray to place shadow on the ground not the nearest grounded position\i0\par
+- adjust the vines model so that it lines up properly with the texture segments \b\i\par
+\b0\i0 - fix bug where player is stuck in falling animation when you die and respawn\par
+- Refine shadow position code so that it is always at the players feet when grounded but looks for the nearest position when airborne.\par
+\par
+- \b\i   \b0 - fix tree in courtyard that is missing one side of the roots.\b  \par
+\b0   - create twisted vines and rubble for near waterfall\i0\par
+- Begin new script for controlling animation transitions on main character. The current setup is too janky. Need to have a dedicated function that sees if a transition needs to happen and executes it based on animation priority. \par
+\par
+- add shooting animation while jumping. Just copy the exising standing animation onto the jumping animation \par
+- make sure playerAvatar.state.movement remains as "walk" or "run" as long as the player is inputing movement, even when jumping or falling. This will take some re-doing since this now works differently than it did before. \par
+- exporter is not updating correctly for the animation frame. \par
+For example:\par
+\i  player_TempVectorPos = player_right_arm_anim[playerAvatar.animRig.animID].anim[animFrame].pos;\i0\line should be:\par
+\i player_TempVectorPos = player_right_arm_anim[playerAvatar.animRig.animID].anim[playerAvatar.animRig.animFrame].pos;\i0\par
+- Remove all other playerAvatar.animRig.animID assignments outside of new function!\par
+- Figure out what is causing the issue with not being able to move and jump. Most likely a simple logic error (!=,>= or <= related?)\b\par
+\b0\par
+-when "landing" after a jump, animation is not properly transitioning to walking animation if player is moving. Instead, it is stuck in a single pose.\par
+\par
+- Falling is smoother now, begin working on animation transition function and jumping while moving and/or shooting\tab\par
+- OLD version of this function is open for reference in second notepad++ window.\b\par
+\b0\par
+\par
+\ul\b - Create a transition between shooting and jumping, add the shooting while jumping animation transition.\ulnone\b0\par
+\par
+\b\i - SOLUTION: create multiple segments for the game since I had exceeding the size of the boot segment. Break up textures, characters, and levels into their own segments? \par
+- HAVE BROKEN TEXTURES OUT INTO THEIR OWN SEGMENT: \par
+\tab spec file:      \tab name "textures"\par
+\par
+   \tab Makefile: \tab separated TEXTUREFILES from CODEOBJECTS\par
+\par
+\tab config.h: \tab added "extern char _texturesSegmentStart[];"\par
+    \tab\tab\tab\tab extern u8 _texturesSegmentEnd[];\par
+    \tab\tab\tab\tab extern u8 _texturesSegmentRomStart[];\par
+    \tab\tab\tab\tab extern u8 _texturesSegmentRomEnd[];\par
+    \tab\tab\tab\tab #define TEXTURE_START   _texturesSegmentStart\par
+    \tab\tab\tab\tab #define TEXTURE_END     _texturesSegmentEnd\par
+    \tab\tab\tab\tab #define TEXTUREROM_START   _texturesSegmentRomStart\par
+    \tab\tab\tab\tab #define TEXTUREROM_END     _texturesSegmentRomEnd\par
+\par
+\tab\tab\tab added "#define TEXTURE_START   _texturesSegmentStart"\par
+\tab main.c: \tab added " Rom2Ram((void *)TEXTUREROM_START, TEXTURE_START, TEXTUREROM_END-TEXTUREROM_START);"\par
+\par
+- Look to NuMirror spec file, makefile and om_rom_data_read.c file for a method to switch between segments. Also look into how audio segment is set up. \par
+\b0\i0                                     \par
+\b - Exporter is exporting a single polygon incorrectly on each model... track down this issue! \par
+- Check on liquid material and find out why it isn't working quite right.\par
+- The issue is most likely a logic issue when choosing "update_vtx" and "update coords" when trying to print 2 triangles\par
+\b0\par
+\b - Fix "texture size override" so that it does not change the value in "gDPLoadTextureBlock_4b"\b0\par
+\b - Begin setup of textures and re-export environment objects using new exporter. \b0\par
+- Complete overhaul how animation is handled for player to avoid hiccups \par
+\b - change the way that the shadow works so that it always applies the shadow to the ground directly under the player rather than calculating it as an offset of the players jump height.\b0\par
+- have jump height variable by how long you hold down button\par
+- have character re-spawn if he falls\par
+\b - fix glitch where you can not running jump when on a slope\par
+- when running or jumping, do not begin animation until you reach a certain frame in the run animation. Or have a specific animation for run/jumping\b0\par
+- Add a series of "low poly" models for the overlook area and caves to cut down on render time\par
+- Re-build all textures for environments to ease in export\par
+- Model and texture the "Solar Panels" for the first puzzle\par
+- Set up animation controller object for player to export automatically\ul\b\par
+\par
+\par
+\par
+\par
+\par
+\par
+\par
+\par
+\par
+\par
+\par
+\par
+\b0 - Fix START Material message so that it only displays if a material is actually used...\ulnone\b\par
+- Fix Modify Vertex sorting on export to make sure it is not used with any GSP2Triangles\b0\par
+\b - Begin testing the recent update to use material texture resolution rather than export screen resolution for uvmaps\b0\par
+- Remove all references to UV Textures in UV Editor such as: \par
+objmat = obj.data.uv_textures["UVMap"].data[0].image.name\par
+- Test exporter in 2.79 with player model\par
+- Was able to get dictionary to work in __init__.py at line 196: \line\i print("\\n" + TEXTURE_4B_TLUT_V2[0]% ("test", "test", "test"))\par
+\i0 Use this to get it working in export.py as well\par
+\par
+- Change UV coordinates on export in \b VTX_64xport\b0  to use Material Property image settings rather than\par
+- Continue working to figure out how to access a global dictionary from another module\par
+- Integrate \b obj_rest_frame\b0  for unweighted bone animations\par
+-\b  Update loop to sort by vertex number\par
+- Continue updating to include new export features\par
+\par
+\par
+\b0\par
+DONE 10/15/2021\par
+- Set TLUT default as imgName_tlut or allow user to set it themselves\par
+\ul\b - Issue most likely with ModifyUVValues\par
+- Revert back to last stable build?\ulnone\par
+- Change out exporter loop to use new materials information\par
+rather than old UV Editor information \par
+- New Version begins: 1480, Old Version begins: 1617\ul\par
+\ulnone\b0\par
+\par
+\par
+\par
+\par
+\par
+\par
+\par
+\par
+\par
+\par
+\par
+\par
+\par
+\par
+\par
+- Store gsSP2Triangles as array of strings based on vertex count\par
+to limit the number of gSPVertex calls ex: (0-31 strings) (32-33 strings...)\par
+- Begin updating export.py to start using the new UI material settings\ul\b\par
+\ulnone\b0\par
+- Now that gfxmacros have been cut down to only the necessary ones,\par
+set up the GBI commands in Blender\par
+- Material properties need to be added that can generate GBI commands when exporting\par
+- The new GBI Commands will be in the Properties window Materials tab under 64Xport Texture Settings\par
+(Properties > Materials > 64Xport Texture Settings\par
+- Possibly allow user to set up their own GBI commands...?\par
+\ul\b\par
+\ulnone\b0 - Import new animations for running, walking and jumping\par
+- Have each animation be saved as it's own array of pos/rot/scl\par
+- re-texture model to improve fidelity\par
+- Create a new function in playercont for rendering transparent objects and effects for player object.\b\par
+\b0 - Create TEX_8B_IA_Effect for glowing elements of power suit and re-export torso with these new glow effects \par
+- Import new animations as a test for exporter and to swap original animations for newer ones \par
+\par
+Done 10/12/2021\par
+\b - Removed unused materials from character model\par
+- Removed unused macros from gfxmacros.h\par
+- Re-animate player character to include new running and jumping animation\par
+\b0\par
+\par
+\par
+\par
+\par
+TO DO NOTES 10/10/2021\par
+\b\par
+\b0\par
+\b\par
+\par
+TO DO NOTES 8/29/2021\par
+\pard\li360\par
+\pard - \ul Notes for playercont.c\ulnone\par
+\pard\li360\b0 - \ul\b Go to\ulnone\b0  "//TO DO NOTE: Adjust player rotation to make it smoother when movign around and when you begin moving again after a jump"\par
+- tie ground collider radius to fall speed? The faster the player is falling, the larger the radius\par
+- update in air character control so that you can have some slight impact on movement while above the ground.\par
+- continue to adjust AgainstGround() script in collisionfunctions.c\par
+\pard - \b Only have camera move after the player has moved a certain distance\par
+- Set up fallCounter to see how long the player has been falling and use it for error checking and influencing the jump.\par
+\b0 - Movement needs to be made more smooth and sped up\par
+\ul\b - Keep shadow on the ground when jumping. \ulnone\b0 This will require removing the shadow as point of the player rig and instead having it be an effect left behind as the player moves. Begin in playercont.c and player_model.c for direction\par
+\b - Re-export the collision for the courtyard area with simplified, less glitchy collision\b0  \par
+\par
+\ul\b - Refine the "save" for if the players position drops below the nearest floor so that it takes into account the player's sphere colider radius.\par
+- Adjust camera smoothing in view.c\par
+\ulnone\b0 Focus on playercont.c and collisioncheck.c so that if the player is jumping up, the z movement is delayed, but the z movement speeds up the longer the player moves along the z axis... focus on void UpdateCameraPosition( Dynamic* dp )\par
+\fs16\par
+\tab\par
+\fs20 - refine gravity calculation to reduce chance of fallign through the floor\par
+\b - Focus on jumping, running, and platforming controls\par
+- ERROR IN JUMP CODE: not updating nearest point when jumping... but updating the nearest point screws up by moving you straight to that position. \ul Change the code for the player so that the Z player position only jumps to the nearest point when grounded.\ulnone\par
+\b0 - Create functions for common actions in level00.c. Things like lighting changes and door interactions could be simplified. Instead have a single door object that when it is called implements all the door functions automatically so that it does clutter up each main level scripts.\par
+\b - Create a new method for lighting changes to be more natural. Have a "current color" and a "next color". Have a default room light for each room and a modified light that can overwrite the default light. Implement a smooth fade from the "current color" to the "next color" to make it appear more natural without actually implementing colored point lights\par
+\b0\par
+- fix glitchy door opening \par
+\ul\b -Work on Jumping animation and collision checks\par
+- Create texture for "broken" doors that need power\par
+\ulnone -Update cave models to include additional light rays\par
+- Animate the pools of water in cave2\ul\par
+\ulnone - Create custom texture for door wall panel.\b0\par
+- Put a new security door leading to the overlook area\par
+- Think about hierarchy of object rendering\par
+\par
+\b - Fix landing zone collision so that you can fall from the upper area to the lower area\par
+- Make adjustments to camera so it will follow the player up the z axis\par
+- Refine camera movement on z-axis to smooth out and not jump around over every minute terrain adjustment. (Minimum z position increase before movement.)\par
+- make adjustments to player movement so that going uphill or downhill will slow down or speed up traversal\b0\par
+- Set up object, lighting and collision trigger boxes in landing zone area\par
+\par
+- Export geometry for cliffside and landing zone\par
+- Set up lighting/collision triggers on cliffside \par
+- Set up new light2 for cliffside scene when entering the pool2 area or when heading to the landing zone\par
+- Set up dripping water sfx and visual\par
+- Set up animated water pools in cave2\par
+\par
+\par
+\par
+\par
+\b DONE\par
+\b0 - Set up wall collision for scn01 (cave1) \par
+\pard\li360 - update wallMesh_CollisionCheck() in collisioncheck.c to send the collision object of the active scene \par
+\pard - look to groundMesh_CollisionCheck() for reference. Run a loop for walls similar to ground "if(currentScene->sceneTriggers[scene].isActive > 0)"\b\par
+\b0 - ERROR seems to be in void PlayerGroundCollision(Dynamic* dp) and is overriding jumping code...\b\par
+\b0 -Focus on improving performance going from cave2 to landing pad transition. Use the door trigger boxes to load and unload the parts of the level\par
+- Fix geometry in cave2 and landingpad so that bg does not peak through.\par
+- Fix lighting on doorway glow "playerAvatar.playerLighting = env00_doorway_glow;" so that the glow only occurs when inside the frame of the door.\b\par
+\b0 -Focus on improving performance in cave1 to cave2 transition. Likely an issue with the collision check boxes. Move some of the cave2 transition collision to cave1's collision and create two separate collision check boxes\b\par
+\b0 - Adjust light ray so that animation plays out more slowly\par
+- Fix glitchy door trigger - closing animation will not play - likely some simple error with game logic\par
+- Set up trigger so that the door opens as you approach and the next scene is loaded\par
+- Set up trigger so that the teal glowing animation despawns when the door opens \par
+- create a teal "glow" for the door when closed\par
+- Begin import of security door w/ animation into project\b\par
+\b0 - Begin texture work on security door, glowing effect when locked, and transparent screen for above the door ( either a metal decorative design or a computer monitor) This will be set up as a 64 x 64 texture.\par
+- Export new version of security door with extended walls and height\par
+- Begin texturing security door and create the actual door opening model\b\par
+\b0 - Fix export of other gate doors. For some reason their position is shifting during animation. \b This was fixed by making sure the bone was animated in pose mode not object mode.\b0\par
+- Fix exporting textures for door - need to be exported at 32 x 128 (16 x 64) in order to display properly. Right now the texture coords are incorrect.\b\par
+\b0 - Set up ground collision for scn01 Cave1\b\par
+\b0 - ERROR FIX - Test collision - moving around to different collision zones causes errors and other collision zones no longer work. Likely a simple logic error.\par
+- Simplify Scene rendering/collision check by properly setting up the various "scenes" and check collision based on scenes[x] rather than assigning everything to the courtyard scene.\par
+- Make these changes in initScenes(void) in main.c and  render_lvl00_Courtyard() in level00.c\b\par
+\b0 - Set up scene triggers for cave2, cliffside and landing zone\b\par
+\b0 - Begin modeling ground and wall collision in new areas\par
+- Set up region triggers cliffside and landing zone\par
+- Break Cave2 up into 2 separate sections - one with a dark fog and one with a light fog near the cliffside exit\par
+- Set up region triggers for cave collision\par
+- Export geometry for cave2, cliffside and landing zone\par
+-Begin at "\b START HERE - separate functions for separate scenes\b0 " in "\i gamemanager.c\i0 "\par
+- set up seperate function for each scene in "\i level00.c\i0 "... scenes[0] = courtyard, scenes[1] =cave1 etc\b\par
+\b0 - if in level00.c, lvl00_SceneTrig[x].isActive == 1 then set scenes[x] to true\par
+\b\par
+\b0\par
+- break out tansparent object rendering into its own function to run after rendering player? Update the SceneManager struct to include a pointer to the new function\par
+\par
+\par
+- Set up scene_cave1 in script "main.c" with functions for loading cave1\par
+- \b Review and Refine the breakdown of level - scene - region\b0  \par
+\tab - starting at the note \b "//NOTE ABOUT USAGE:"\b0  in \i level00.c\i0\par
+- Create custom scripts for each scene of a level to reduce confusion\par
+- Re-name files to be more consistent - use scnXX format for each scene.\par
+\tab - scn00 = landingZone\par
+\tab - scn01 = cave1\par
+\tab - scn02 = cliffside\par
+\tab - scn04 = courtyard\par
+- \b Create new functions for each SceneManager\b0  - "enemiesRender", "objectsRender" and "transparentRender"\par
+- Finish setting up Cave1 scene triggers (EnvObject for lvl00_Cave1_Ground, lvl00_Cave1_Wall, lvl00_Cave1_Arches ) and load in game... \par
+\tab - scene trigger for loading and render them in game\par
+\tab - collision trigger for checking player position against walls\par
+\tab - set up collision object for cave1 scene\par
+\par
+- Come up with final naming convention for level/scene scripts and game objects \par
+- Create a "to do list" for each time a level element is created to speed up process\par
+\par
+\b RECENTLY DONE 7/30/2021\b0\par
+- set up EnvObject for lvl00_Cave1_Ground, lvl00_Cave1_Wall, lvl00_Cave1_Arches and render them in game\par
+- Re-export grating over the water features with new VTX color shading\par
+\par
+\par
+- Fully comment "wallMesh_CollisionCheck" function inside of collisioncheck.c\par
+- smoothly lerp z position so that player is not snapping back and forward\par
+- compare player movement normal against ground normal and adjust speed based on if moving uphill or downhill \par
+- key scripts located in main.c, level00.c, env00_col_courtyard_walls.c, collisioncheck.c, transformDefs.h, objectDefs.h, collisionDefs.h, \par
+- //TO DO NOTE: Set up SectorTrigger to load events, texture animation, enemy behavior and collision checks.\par
+-TO DO NOTE: Set up menu option to swap between 16:9 and 4:3 screen modes...\par
+\par
+\par
+\par
+\par
+\par
+\par
+TO DO NOTES Updated 2/8/2021\b\par
+- Clear recent TO DO NOTES from the associated scripts...\par
+- there appears to be a stray collision tri hovering over the river directly in front of the waterfall\par
+- check ground and wall collisions for errors - there appear to be errors around tree roots and on broken ground planes near waterfront  \b0\par
+\par
+\par
+DONE 2/25/2021\par
+- Option for Anamorphic 16:9 widescreen. This is set in the script view.c... \par
+\tab guPerspective(&dp->projection, &perspNorm, 40, ((float)\b ANAMORPHIC_WD\b0 /(float)\b ANAMORPHIC_HT\b0 ), nearPosition, 3750, 1.0f);\par
+- The Anamorphic definitions are set in the script graphic.h\par
+\tab\tab #define ANAMORPHIC_WD \tab 400\par
+\tab\tab #define ANAMORPHIC_HT \tab 226\par
+\par
+\par
+DONE 2/8/2021\par
+- Make same updates to "groundMesh_CollisionCheck" function inside of collisioncheck.c\par
+- Create and export sector MeshColliderTri and MeshCollider and create MeshColObj for ground collision.\par
+- //TO DO NOTE: Set up references to this collision check when initiating SceneManager in main.c\par
+- //TO DO NOTE: Set up SectorTrigger for ground collision (this is now using the same collision triggers as the wall collision \par
+\par
+DONE 2/4/2021\par
+- //TO DO NOTE: Set up SectorTrigger to determine where to check for collisions\par
+- //TO DO NOTE: Set up ENVColObject to store in each courtyard scene for MeshCollider lvl00_courtyard_col_wall01_MeshVtx \par
+- A basic check for Level/SceneTriggers has been done \par
+- TEST Sector trigger has been done to load level geometry, but needs to be changed to instead make a collision check\par
+- TEST LevelTrigger and SceneTrigger to load level geometry. WORKS in level00.c with simple testing \par
+- Now that the format for LevelTrigger, SceneTrigger, and SectorTrigger are worked out, set it up to test in game\par
+\par
+DONE 01/20/2021: \par
+\par
+- continue organizing level scripts and removing old, unused content.\par
+}
+ 
